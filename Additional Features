@@ -1,0 +1,191 @@
+// Motor pins
+#define ENA 3
+#define IN1 A0
+#define IN2 A3
+#define ENB 11
+#define IN3 12
+#define IN4 13
+
+// Ultrasonic sensor pins
+#define trigPin 10
+#define echoPin 2
+
+// Buzzer pin
+#define buzzerPin A1
+
+// Variables
+long duration;
+float distance;
+
+// Function prototypes
+void moveForward(int speed);
+void stopMotors();
+void turnLeft(int speed, int duration);
+void turnRight(int speed, int duration);
+void turnBack(int speed, int duration);
+float measureDistance();
+void playBuzzer();
+
+void setup() {
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  pinMode(buzzerPin, OUTPUT);
+
+  Serial.begin(9600);
+  Serial.println("Setup Complete. Starting...");
+}
+
+void loop() {
+  distance = measureDistance();
+
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+
+  if (distance > 0 && distance < 400) { // Valid readings
+    if (distance < 30) {
+      Serial.println("Obstacle detected! Turning back...");
+      playBuzzer();
+      stopMotors();
+      avoidObstacle();
+    } else {
+      Serial.println("Clear path. Moving forward...");
+      moveForward(73);
+    }
+  } else {
+    Serial.println("Invalid reading. Stopping...");
+    stopMotors();
+      }
+
+  delay(50);
+}
+
+// Function to measure distance
+float measureDistance() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH, 30000); // Timeout for robustness
+  return (0.034 * duration) / 2; // Distance in cm
+}
+
+// Function to move forward
+void moveForward(int speed) {
+  analogWrite(ENA, speed);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+
+  analogWrite(ENB, speed);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+
+  noTone(buzzerPin); // Buzzer off
+}
+
+// Function to stop motors
+void stopMotors() {
+  analogWrite(ENA, 0);
+  analogWrite(ENB, 0);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
+
+// Function to play buzzer
+void playBuzzer() {
+  tone(buzzerPin, 400, 150); // 1000 Hz for 300 ms
+  delay(300);
+  tone(buzzerPin, 200, 150); // 1500 Hz for 300 ms
+  delay(300);
+  noTone(buzzerPin);
+}
+
+// Function to turn left
+void turnLeft(int speed, int duration) {
+  analogWrite(ENA, speed);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+
+  analogWrite(ENB, speed);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+
+  delay(duration);
+  stopMotors();
+}
+
+// Function to turn right
+void turnRight(int speed, int duration) {
+  analogWrite(ENA, speed);
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+
+  analogWrite(ENB, speed);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+
+  delay(duration);
+  stopMotors();
+}
+
+// Function to turn back
+void turnBack(int speed, int duration) {
+  Serial.println("Turning back...");
+  analogWrite(ENA, speed);
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+
+  analogWrite(ENB, speed);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  delay(duration);
+  stopMotors();
+}
+
+// Function for obstacle avoidance
+void avoidObstacle() {
+  stopMotors();
+  playBuzzer();
+  delay(500);
+
+  // Step 1: Turn back
+  turnBack(100, 1000); // Adjust duration for a 180-degree turn
+
+  // Step 2: Measure distances to left and right
+  Serial.println("Measuring left...");
+  turnLeft(150, 500); // Turn slightly left
+  float leftDistance = measureDistance();
+  Serial.print("Left Distance: ");
+  Serial.println(leftDistance);
+
+  Serial.println("Measuring right...");
+  turnRight(150, 1000); // Turn past the center to the right
+  float rightDistance = measureDistance();
+  Serial.print("Right Distance: ");
+  Serial.println(rightDistance);
+
+  // Step 3: Decide which way to go
+  if (leftDistance > rightDistance) {
+    Serial.println("Turning left...");
+    turnLeft(150, 500); // Turn back to left
+  } else {
+    Serial.println("Turning right...");
+    turnRight(150, 500); // Turn back to right
+  }
+
+  // Step 4: Move forward
+  Serial.println("Resuming forward motion...");
+  moveForward(73);
+}
