@@ -1,0 +1,256 @@
+#include <LiquidCrystal.h>
+#include <PinChangeInterrupt.h>
+#include <Wire.h>
+#include <MPU6050.h>
+
+// LCD pin configuration
+const int rs = 8, en = 9, d4 = 4, d5 = 5, d6 = 6, d7 = 7;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+// Motor pins
+const int ENA = 3, IN1 = A0, IN2 = A3;
+const int ENB = 11, IN3 = 12, IN4 = 13;
+
+// IR Sensor pins
+const int leftsensor = A2, rightsensor = A1;
+
+// Encoder pins
+const int encoderL = 2; // Left encoder pin (use any pin that supports pin change interrupt)
+volatile int leftEncoderCount = 0;  // Encoder pulse count for left motor
+
+// Encoder parameters
+const float wheelCircumference = 20.149; // Circumference in cm
+const int pulsesPerRevolution = 22;      // Pulses per wheel rotation
+
+// Total distance variables
+volatile float leftTotalDistance = 0.0;  // Total distance for left wheel
+
+
+// MPU6050
+MPU6050 mpu;
+
+// Variables for accelerometer data
+float accX, accY, accZ;
+float pitch;
+
+
+// Speed variable
+int speed = 73;
+
+// Statement flag
+int flag = 0;
+
+// Timer variables
+bool isTimerRunning = false;          // Keeps track of whether the timer is running
+unsigned long motionStartTime = 0;    // Records the time when motion starts
+unsigned long motionStopTime = 0;     // Records the time when motion stops
+// Timer for LCD updates
+unsigned long lastLCDUpdate = 0;
+const unsigned long lcdUpdateInterval = 500; // Update LCD every 500ms
+
+void moveForward(int speed);
+void turnLeft();
+void turnRight();
+void turn360();
+void stopMotors();
+void followLine(int speed);
+void leftEncoderInterrupt();
+
+void setup() {
+  // Initialize LCD
+  lcd.begin(16, 2);
+  lcd.print("Initializing...");
+
+  // Motor initialization
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  stopMotors();
+
+  //Sensor Initialization
+  pinMode(leftsensor, INPUT); //A1 (ambrose)
+  pinMode(rightsensor, INPUT); //A2 (vivien)
+
+  pinMode(encoderL, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(encoderL), leftEncoderInterrupt, RISING);
+
+  Wire.begin();
+  mpu.initialize();
+
+  // Initialize Serial Monitor
+  Serial.begin(9600);
+  lcd.clear();
+  lcd.print("Ready");
+}
+
+void loop() {
+  // Always follow the line
+
+  // Read raw accelerometer data
+  accX = mpu.getAccelerationX();
+  accY = mpu.getAccelerationY();
+  accZ = mpu.getAccelerationZ();
+
+  // Convert raw data to g-forces
+  float ax = accX / 16384.0;
+  float ay = accY / 16384.0;
+  float az = accZ / 16384.0;
+
+  // Calculate pitch angle
+  pitch = (atan2(ay, sqrt(ax * ax + az * az)) * 180 / PI) + 8.9; // Adjusted for calibration
+
+   // Update total distance based on encoder counts
+  leftTotalDistance = (leftEncoderCount / (float)pulsesPerRevolution) * wheelCircumference;
+
+  // Calculate the total distance traveled
+  float totalDistance = leftTotalDistance;
+
+  if (pitch > -2 && pitch <= 9 && flag == 0) {
+    followLine(73);
+    lcd.clear();
+    lcd.print("Flat surfaces");
+    
+  } else if (pitch > 9 && pitch < 25 && flag == 0) {
+    followLine(100);
+    lcd.print("Flat surfaces"); 
+    if (pitch == 25)
+    stopMotors();
+    delay(4000);
+    flag =1;
+    lcd.clear();
+    lcd.print("Incline Detected"); 
+    
+  } else if (pitch >= 25 && pitch <= 40 && flag == 1) {
+    followLine(250);
+    delay(1000);
+    lcd.clear();
+    lcd.print("Incline Detected");
+    flag = 2;
+    
+  }else if (pitch > -2 && pitch <= 12 && flag == 2) {
+    lcd.setCursor(0, 1);
+    lcd.print("Pitch : ");
+    lcd.print(pitch);
+    lcd.print("deg");
+    stopMotors();
+    delay(4000); //Stop for 4 second
+    turn360();
+    followLine(60);
+    stopMotors();
+    lcd.clear();
+    lcd.print("Top of Ramp");
+    flag = 3;
+     
+  }else if (pitch > 1 && pitch <= 9 && flag == 3){
+
+   totalDistance=leftTotalDistance; //Reset totalDIstance to the current distance at the start
+
+   while (totalDistance < 60) {
+        followLine(70); // Keep following the line
+        totalDistance=leftTotalDistance;
+    }
+    stopMotors(); // Stop after 7.2 seconds
+    delay(3000); // Wait for 3 seconds
+    flag = 4;
+  } else if (flag == 4){
+    followLine(73);
+    lcd.clear();
+  }
+  
+  followLine(speed);
+
+  // Update LCD
+  lcd.setCursor(0, 1);
+  lcd.print("Pitch: "); 
+  lcd.print(pitch, 1);
+  lcd.print(" deg ");
+
+  delay(50); // Stabilize loop
+}
+
+// Function to follow the line
+void followLine(int speed) {
+  int leftVal = digitalRead(leftsensor);
+  int rightVal = digitalRead(rightsensor);
+
+  if (leftVal == HIGH && rightVal == LOW) {
+    // Turn Left
+    turnLeft();
+  } else if (rightVal == HIGH && leftVal == LOW) {
+    // Turn Right
+    turnRight();
+  } else if (leftVal == HIGH && rightVal == HIGH) {
+    // Move forward
+    moveForward(speed);
+  } else {
+    // Stop if no line detected
+    stopMotors();
+  }
+
+  delay(6);
+}
+
+// Function to move forward
+void moveForward(int speed) {
+  analogWrite(ENA, speed);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+
+  analogWrite(ENB, speed);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void turnLeft() {
+  analogWrite(ENA, 255);
+  digitalWrite(IN1, HIGH); //left wheels from behind
+  digitalWrite(IN2, LOW);
+
+  analogWrite(ENB, 255);
+  digitalWrite(IN3, HIGH); //right wheels from behind
+  digitalWrite(IN4, LOW);
+}
+
+// Function to turn right
+void turnRight() {
+  analogWrite(ENA, 255);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+
+  analogWrite(ENB, 255);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+}
+
+// Function to perform a 360-degree turn
+void turn360() {
+  analogWrite(ENA, 235);
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+
+  analogWrite(ENB, 235);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+
+  delay(2300); // Adjust time for a full 360-degree turn
+  stopMotors();
+}
+
+// Function to stop motors
+void stopMotors() {
+  analogWrite(ENA, 0);
+  analogWrite(ENB, 0);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
+
+// Interrupt Service Routines (ISR) for encoders
+void leftEncoderInterrupt() {
+  leftEncoderCount++;
+}
