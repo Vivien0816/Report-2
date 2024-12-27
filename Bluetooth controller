@@ -1,0 +1,101 @@
+// Define motor pins
+const int motor1Pin1 = A0; // IN1 for Motor 1
+const int motor1Pin2 = A3; // IN2 for Motor 1
+const int motor1En = 3;    // ENA for Motor 1 (PWM)
+
+const int motor2Pin1 = 12; // IN3 for Motor 2
+const int motor2Pin2 = 13; // IN4 for Motor 2
+const int motor2En = 11;   // ENB for Motor 2 (PWM)
+
+char data;                 // Command received via Serial
+int speed = 255s;           // Speed value (0 to 255)
+
+void setup() {
+  // Set up motor pins as outputs
+  pinMode(motor1Pin1, OUTPUT);
+  pinMode(motor1Pin2, OUTPUT);
+  pinMode(motor1En, OUTPUT);
+
+  pinMode(motor2Pin1, OUTPUT);
+  pinMode(motor2Pin2, OUTPUT);
+  pinMode(motor2En, OUTPUT);
+
+  // Initialize serial communication
+  Serial.begin(9600);
+
+  // Stop motors at startup
+  Stop();
+}
+
+void loop() {
+  // Check if data is available in the Serial buffer
+  if (Serial.available() > 0) {
+    data = Serial.read(); // Read a single character
+    Serial.println(data); // Echo the command for debugging
+
+    // Motor control commands
+    if (data == 'F') {
+      forward();
+    } else if (data == 'B') {
+      back();
+    } else if (data == 'L') {
+      left();
+    } else if (data == 'R') {
+      right();
+    } else if (data == 'T') {
+      Stop();
+    }
+  }
+}
+
+// Motor control functions
+
+void forward() {
+  digitalWrite(motor1Pin1, HIGH;
+  digitalWrite(motor1Pin2, LOW);
+  analogWrite(motor1En, speed);
+
+  digitalWrite(motor2Pin1, HIGH);
+  digitalWrite(motor2Pin2, LOW);
+  analogWrite(motor2En, speed);
+}
+
+void back() {
+  digitalWrite(motor1Pin1, LOW);
+  digitalWrite(motor1Pin2, HIGH);
+  analogWrite(motor1En, speed);
+
+  digitalWrite(motor2Pin1, LOW);
+  digitalWrite(motor2Pin2, HIGH);
+  analogWrite(motor2En, speed);
+}
+
+void left() {
+  digitalWrite(motor1Pin1, LOW);
+  digitalWrite(motor1Pin2, HIGH);
+  analogWrite(motor1En, speed);
+
+  digitalWrite(motor2Pin1, HIGH);
+  digitalWrite(motor2Pin2, LOW);
+  analogWrite(motor2En, speed);
+}
+
+void right() {
+  digitalWrite(motor1Pin1, HIGH);
+  digitalWrite(motor1Pin2, LOW);
+  analogWrite(motor1En, speed);
+
+  digitalWrite(motor2Pin1, LOW);
+  digitalWrite(motor2Pin2, HIGH);
+  analogWrite(motor2En, speed);
+}
+
+void Stop() {
+  digitalWrite(motor1Pin1, LOW);
+  digitalWrite(motor1Pin2, LOW);
+  analogWrite(motor1En, 0);
+
+  digitalWrite(motor2Pin1, LOW);
+  digitalWrite(motor2Pin2, LOW);
+  analogWrite(motor2En, 0);
+}
