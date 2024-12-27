@@ -1,0 +1,99 @@
+// Motor pins
+#define ENA 3
+#define IN1 A0
+#define IN2 A3
+#define ENB 11
+#define IN3 12
+#define IN4 13
+
+// Ultrasonic sensor pins
+#define trigPin 10
+#define echoPin 2
+
+// Variables
+long duration;
+float distance; // Use float for accurate calculations
+
+// Function prototypes
+void moveForward(int speed);
+void stopMotors();
+
+void setup() {
+  // Motor pin modes
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  // Ultrasonic Sensor pin modes
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  // Serial Monitor for debugging
+  Serial.begin(9600);
+
+  // Debugging message
+  Serial.println("Setup Complete. Starting...");
+}
+
+void loop() {
+  // Measure distance using ultrasonic sensor
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  // Measure the duration of the echo
+  duration = pulseIn(echoPin, HIGH, 30000); // Timeout added for robustness (30 ms)
+  
+  // Calculate the distance using the formula: Distance = (0.034 × Time) / 2
+  distance = (0.034 * duration) / 2;
+
+  // Debugging: Print distance to Serial Monitor
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+
+  // Check if distance is valid
+  if (distance > 0 && distance < 400) { // Ensure distance is within sensor range
+    if (distance < 10) {
+      // Stop the car if distance is less than 10 cm
+      Serial.println("Obstacle detected! Stopping...");
+      stopMotors();
+    } else {
+      // Move forward if distance is safe
+      Serial.println("Clear path. Moving forward...");
+      moveForward(150); // Adjust speed as needed
+    }
+  } else {
+    // If distance is invalid, stop for safety
+    Serial.println("Invalid reading. Stopping...");
+    stopMotors();
+  }
+
+  delay(50); // Small delay to stabilize sensor readings
+}
+
+// Function to move the car forward
+void moveForward(int speed) {
+  analogWrite(ENA, speed);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+
+  analogWrite(ENB, speed);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+// Function to stop the motors
+void stopMotors() {
+  analogWrite(ENA, 0);
+  analogWrite(ENB, 0);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
