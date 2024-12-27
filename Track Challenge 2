@@ -153,7 +153,7 @@ void loop() {
         followLine(70); // Keep following the line
         totalDistance=leftTotalDistance;
     }
-    stopMotors(); // Stop after 7.2 seconds
+    stopMotors();
     delay(3000); // Wait for 3 seconds
     flag = 4;
   } else if (flag == 4){
